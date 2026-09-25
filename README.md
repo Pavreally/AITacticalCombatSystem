@@ -14,8 +14,9 @@ AITCS is a modular framework for Unreal Engine 5 designed to create coordinated 
 ## Latest Updates
 `Alpha` `Development` `Experimental`
 
-`Version 0.0.12`
+`Version 0.0.13`
 - Built for Unreal Engine 5.7.4.
+- Added a fix for an issue where NPCs would suddenly stop pursuing the player if the player jumped. This feature triggers automatically, but can be configured in the StateTree.
 
 ## What it's for
 - Setting up coordinated combat scenarios for in-game AI.

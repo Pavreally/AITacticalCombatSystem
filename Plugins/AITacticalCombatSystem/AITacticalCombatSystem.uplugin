@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.0.12",
+	"VersionName": "0.0.13",
 	"FriendlyName": "AI Tactical Combat System",
 	"Description": "AITCS — AI Tactical Combat System plugin featuring its own pawn formation graph editor.",
 	"Category": "AI",

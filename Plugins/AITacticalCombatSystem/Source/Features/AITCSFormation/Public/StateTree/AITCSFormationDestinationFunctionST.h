@@ -11,6 +11,14 @@
 class AActor;
 class UAITCSTacticalUnitComponent;
 
+/** How formation movement reacts while its target character is airborne. */
+UENUM()
+enum class EAITCSAirborneTargetBehavior : uint8
+{
+	FollowProjectedLocation UMETA(DisplayName = "Keep Following (Project to Navigation)"),
+	WanderNearby UMETA(DisplayName = "Wander Nearby")
+};
+
 /** Instance data used by the AITCS formation destination StateTree function. */
 USTRUCT()
 struct AITCSFORMATION_API FAITCSFormationDestinationInstanceData
@@ -57,6 +65,14 @@ struct AITCSFORMATION_API FAITCSFormationDestinationInstanceData
 	UPROPERTY(EditAnywhere, Category = Parameter, meta = (DisplayName = "Release Formation Control When Within Attack Distance"))
 	bool bReleaseFormationControlWhenWithinAttackDistance = false;
 
+	/** Movement response while Target Actor is a character in the air. */
+	UPROPERTY(EditAnywhere, Category = Parameter, meta = (DisplayName = "Airborne Target Behavior"))
+	EAITCSAirborneTargetBehavior AirborneTargetBehavior = EAITCSAirborneTargetBehavior::FollowProjectedLocation;
+
+	/** Maximum distance from the unit for a reachable wandering point while the target is airborne. */
+	UPROPERTY(EditAnywhere, Category = Parameter, meta = (DisplayName = "Airborne Wander Radius", ClampMin = "0.0", UIMin = "0.0", EditCondition = "AirborneTargetBehavior == EAITCSAirborneTargetBehavior::WanderNearby"))
+	float AirborneWanderRadius = 600.0f;
+
 	/** Resolved follow distance output from the function. */
 	UPROPERTY(EditAnywhere, Category = Output)
 	float FollowDistance = 800.0f;
@@ -96,6 +112,16 @@ struct AITCSFORMATION_API FAITCSFormationDestinationInstanceData
 	/** Calculated destination for the formation movement. */
 	UPROPERTY(EditAnywhere, Category = Output)
 	FVector Destination = FVector::ZeroVector;
+
+	/** Runtime cache keeps wander movement stable for the duration of one jump. */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> CachedAirborneTargetActor = nullptr;
+
+	UPROPERTY(Transient)
+	FVector CachedAirborneWanderDestination = FVector::ZeroVector;
+
+	UPROPERTY(Transient)
+	bool bHasCachedAirborneWanderDestination = false;
 };
 
 /** StateTree property function that resolves formation destination from AITCS tactical data. */

@@ -25,6 +25,7 @@ public class AITCSFormation : ModuleRules
 			new string[]
 			{
 				"AITCSRuntime",
+				"NavigationSystem",
 			}
 			);
 	}

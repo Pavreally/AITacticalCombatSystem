@@ -7,8 +7,11 @@
 #include "Director/AITCSDirectorSubsystem.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "NavigationSystem.h"
 #include "StateTreeExecutionContext.h"
 #include "StateTreePropertyBindings.h"
 
@@ -113,6 +116,70 @@ namespace
 
 		return nullptr;
 	}
+
+	void ApplyAirborneTargetBehavior(FStateTreeExecutionContext &Context, FAITCSFormationDestinationInstanceData &InstanceData, const UAITCSTacticalUnitComponent *UnitComponent, AActor *AgentActor)
+	{
+		const ACharacter *TargetCharacter = Cast<ACharacter>(InstanceData.TargetActor);
+		const UCharacterMovementComponent *TargetMovement = TargetCharacter ? TargetCharacter->GetCharacterMovement() : nullptr;
+		const bool bTargetIsAirborne = TargetMovement && TargetMovement->IsFalling();
+		if (!bTargetIsAirborne)
+		{
+			InstanceData.CachedAirborneTargetActor = nullptr;
+			InstanceData.bHasCachedAirborneWanderDestination = false;
+			return;
+		}
+
+		AActor *UnitOwner = UnitComponent ? UnitComponent->GetOwner() : AgentActor;
+		if (!UnitOwner)
+		{
+			return;
+		}
+
+		UNavigationSystemV1 *Navigation = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Context.GetWorld());
+		if (InstanceData.AirborneTargetBehavior == EAITCSAirborneTargetBehavior::WanderNearby)
+		{
+			if (InstanceData.CachedAirborneTargetActor != InstanceData.TargetActor)
+			{
+				InstanceData.CachedAirborneTargetActor = InstanceData.TargetActor;
+				InstanceData.bHasCachedAirborneWanderDestination = false;
+			}
+
+			if (!InstanceData.bHasCachedAirborneWanderDestination && Navigation)
+			{
+				FNavLocation WanderLocation;
+				if (Navigation->GetRandomReachablePointInRadius(UnitOwner->GetActorLocation(), FMath::Max(0.0f, InstanceData.AirborneWanderRadius), WanderLocation))
+				{
+					InstanceData.CachedAirborneWanderDestination = WanderLocation.Location;
+					InstanceData.bHasCachedAirborneWanderDestination = true;
+				}
+			}
+
+			if (InstanceData.bHasCachedAirborneWanderDestination)
+			{
+				InstanceData.Destination = InstanceData.CachedAirborneWanderDestination;
+				return;
+			}
+		}
+
+		// MoveTo/Path Following works on the navigation surface. Use the unit's
+		// current floor height as the projection origin so stacked floors do not
+		// cause a jump target to select a different level.
+		if (Navigation)
+		{
+			FVector ProjectionPoint = InstanceData.Destination;
+			ProjectionPoint.Z = UnitOwner->GetActorLocation().Z;
+			FNavLocation ProjectedLocation;
+			if (Navigation->ProjectPointToNavigation(ProjectionPoint, ProjectedLocation, FVector(300.0f, 300.0f, 500.0f)))
+			{
+				InstanceData.Destination = ProjectedLocation.Location;
+				return;
+			}
+		}
+
+		// Keep the XY pursuit point if projection is unavailable, but avoid using
+		// the target's airborne height as the path destination.
+		InstanceData.Destination.Z = UnitOwner->GetActorLocation().Z;
+	}
 }
 
 void FAITCSFormationDestinationFunctionST::Execute(FStateTreeExecutionContext &Context) const
@@ -204,6 +271,7 @@ void FAITCSFormationDestinationFunctionST::Execute(FStateTreeExecutionContext &C
 						}
 					}
 				}
+				ApplyAirborneTargetBehavior(Context, InstanceData, UnitComponent, AgentActor);
 				return;
 			}
 		}
@@ -212,6 +280,7 @@ void FAITCSFormationDestinationFunctionST::Execute(FStateTreeExecutionContext &C
 	if (InstanceData.bFallbackToTargetLocation && InstanceData.TargetActor)
 	{
 		InstanceData.Destination = InstanceData.TargetActor->GetActorLocation();
+		ApplyAirborneTargetBehavior(Context, InstanceData, UnitComponent, AgentActor);
 	}
 }
 
